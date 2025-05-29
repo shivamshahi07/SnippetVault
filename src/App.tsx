@@ -51,6 +51,7 @@ function App() {
     const { data, error } = await supabase
       .from("snippets")
       .select("*")
+      .eq("user_id", session?.user?.id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -116,6 +117,22 @@ function App() {
       });
 
       console.log("Login successful:", response);
+
+      // Get the latest session after successful login
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+      if (currentSession) {
+        setSession(currentSession);
+        // Fetch snippets immediately after login
+        const { data: snippetsData } = await supabase
+          .from("snippets")
+          .select("*")
+          .eq("user_id", currentSession.user.id)
+          .order("created_at", { ascending: false });
+
+        setSnippets(snippetsData || []);
+      }
     } catch (error) {
       console.error("Login failed:", error);
       setError(
