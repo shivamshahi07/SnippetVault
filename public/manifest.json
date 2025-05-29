@@ -4,7 +4,14 @@
   "version": "1.0.0",
   "key": "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2UUlCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktjd2dnU2pBZ0VBQW9JQkFRREdqeTJBazV4UWRVWnlCa3ZFWCtwWkQvb2x1b0lGNGVrOTlIZzVNZ3BUclZYbmxJSnNEWDJUNkp0aU0xdWtGNDB3NW16WVptRE03ZDcrR01hL2svWWtQS1FYY0ZPRzhFR0JXclZwMnJGS2hZUkZ1Nkx0aStnK2dBdEM2b3pRMG1mekttenRMK3lMREtJcWlMU0xydUtqN2o4TVI4dTJDaVZlcDBYckxpVlU0VFNmbDlVNCtOYVNuWDJWZ0ZyYXBQWUlmSGxTcXFyaG81UzRiN2FCVzdIUExrRG1XR01FWTkwTDFjaWhHNUhSTHo4a2VISk9jdktvQWtmeitzczJWci9ETEQyQU51Y2VuUWVnM3JMSjlMeXlFeEhWaUdsenpSNEdJWVlyL1dxbFViWmdTWlQ3b2R3VDFjdXpXOFdXaWVEWjZrdWMybHlaT1E5MUFyNjdPK1pBZ01CQUFFQ2dnRUFJdE9rTUlReGk2MDJRUE8zd0didVFzMFJwSk1yMDJXRkpqdE5kYnZMRyt1eFJRQUE5YkFSbHZWYTBRbUl0dGJkbnpXYnRPbnVpaU85RC9XWE5IbmN1V2liRXhWT3ZZdUNyTEt3alc4Qy9EZ29qTERRQUhOaElVUVlXYzVNK1JiWlNBMFd5dTF1SGl0QVpkWXBxMklGQlFXMmRZMk1JYVJLWWdXU25qOXVWTXAwNTlpN3RNbk5DV3poUVU1dHZGU1MydUJEbnVxUG9abmVHem5ySEg3NlVpdTZIM09GN2J0cWt0Q0l2VDZneE9Xc1lPRFhsY203b2h0b0JRb1dUdGExdk02R3FCSXduek5CUmtuZzJ5ZE40MlFJdU9XT3FDTjVwS0g3Y1JRRFlLM3JNc0ZxSkVIQW5POW9CSFV5MWpIRCt2d0Y4bFlDdzkrZnlkZGR0WmN3N1FLQmdRRDVjYTM4SmgvRE53ejZVSGljUEltVU54RXpQQ3FnSzJlUUtPWlorOWFXK05wcEI0VW9RdGV0NHE5TjRsanpsU3ZOSDNHbkN2WUc2UjUvQjJzR1FIYTM=",
   "description": "A modern code snippet manager with Supabase integration",
-  "permissions": ["storage", "clipboardWrite", "identity", "webNavigation"],
+  "permissions": [
+    "storage",
+    "clipboardWrite",
+    "identity",
+    "webNavigation",
+    "alarms"
+  ],
+  "host_permissions": ["https://*.supabase.co/*"],
   "action": {
     "default_popup": "index.html",
     "default_icon": {
@@ -19,12 +26,7 @@
     "128": "icons/icon128.png"
   },
   "background": {
-    "service_worker": "src/background.ts",
+    "service_worker": "background.js",
     "type": "module"
-  },
-  "host_permissions": ["https://*.supabase.co/*"],
-  "oauth2": {
-    "client_id": "${snippet-organizer}",
-    "scopes": ["user:email"]
   }
 }

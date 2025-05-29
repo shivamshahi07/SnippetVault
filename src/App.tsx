@@ -13,12 +13,16 @@ function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
 
+    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -33,6 +37,15 @@ function App() {
       fetchSnippets();
     }
   }, [session]);
+
+  useEffect(() => {
+    // Establish connection with service worker
+    const port = chrome.runtime.connect({ name: "popup" });
+
+    return () => {
+      port.disconnect();
+    };
+  }, []);
 
   const fetchSnippets = async () => {
     const { data, error } = await supabase
@@ -77,6 +90,42 @@ function App() {
     setSnippets(snippets.filter((snippet) => snippet.id !== id));
   };
 
+  const handleGitHubLogin = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log("Starting GitHub login");
+
+      // Send message to background script to initiate OAuth
+      const response = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { type: "initiate_github_login" },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+              return;
+            }
+            if (response?.error) {
+              reject(new Error(response.error));
+              return;
+            }
+            resolve(response?.data);
+          }
+        );
+      });
+
+      console.log("Login successful:", response);
+    } catch (error) {
+      console.error("Login failed:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to login with GitHub"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!session) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -114,28 +163,30 @@ function App() {
                 </span>
               </div>
             </div>
+            {error && (
+              <div className="text-red-500 text-sm text-center mb-4 p-2 bg-red-50 rounded">
+                {error}
+              </div>
+            )}
             <button
-              onClick={async () => {
-                try {
-                  chrome.runtime.sendMessage(
-                    { type: "initiate_github_login" },
-                    async (response) => {
-                      if (response.error) {
-                        console.error("Login error:", response.error);
-                        return;
-                      }
-                    }
-                  );
-                } catch (error) {
-                  console.error("Failed to initiate login:", error);
-                }
-              }}
-              className="w-full btn-primary flex items-center justify-center gap-2"
+              onClick={handleGitHubLogin}
+              disabled={isLoading}
+              className={`w-full btn-primary flex items-center justify-center gap-2 ${
+                isLoading ? "opacity-50 cursor-not-allowed" : ""
+              }`}
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-              </svg>
-              Sign in with GitHub
+              {isLoading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <svg
+                  className="w-5 h-5"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+              )}
+              {isLoading ? "Signing in..." : "Sign in with GitHub"}
             </button>
           </div>
         </div>
