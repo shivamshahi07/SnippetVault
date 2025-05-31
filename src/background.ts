@@ -128,17 +128,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 console.error("Missing code in redirect URL");
                 return sendResponse({ error: "Missing code in redirect URL" });
               }
-            
+
               const { data: sessionData, error: sessionError } =
                 await supabase.auth.exchangeCodeForSession(code);
-            
+
               if (sessionError) {
                 console.error("Session exchange error:", sessionError);
                 return sendResponse({ error: sessionError.message });
               }
-            
+
               console.log("Session set successfully", sessionData);
-            
+
               // Ensure the response is sent before the service worker dies
               Promise.resolve().then(() => sendResponse({ data: sessionData }));
             } catch (err) {
@@ -154,5 +154,74 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
 
     return true; // 👈 keeps the message channel alive
+  }
+
+  if (message.type === "get_website_tokens") {
+    const url = message.domain;
+    console.log("Getting cookies for URL:", url);
+
+    // Check if chrome.cookies API is available
+    if (typeof chrome === "undefined" || !chrome.cookies) {
+      console.error(
+        "Chrome cookies API not available. Extension context:",
+        chrome?.runtime?.id
+      );
+      sendResponse({
+        error: "Cookie API not available. Please reload the extension.",
+      });
+      return true;
+    }
+
+    // Get access token cookie
+    try {
+      chrome.cookies.getAll(
+        {
+          url: url,
+        },
+        (allCookies) => {
+          console.log("All cookies for domain:", allCookies);
+
+          const accessCookie = allCookies.find(
+            (c) => c.name === "snippet-organizer-token"
+          );
+          const refreshCookie = allCookies.find(
+            (c) => c.name === "snippet-organizer-refresh"
+          );
+
+          if (!accessCookie) {
+            console.log("No access token cookie found");
+            sendResponse({
+              error: "No auth tokens found. Please log in on the website.",
+            });
+            return;
+          }
+
+          if (!refreshCookie) {
+            console.error("No refresh token found");
+            sendResponse({ error: "Refresh token not found" });
+            return;
+          }
+
+          console.log("Found cookies:", {
+            hasAccessToken: !!accessCookie,
+            hasRefreshToken: !!refreshCookie,
+            accessTokenValue: accessCookie.value.substring(0, 10) + "...",
+            refreshTokenValue: refreshCookie.value.substring(0, 10) + "...",
+          });
+
+          sendResponse({
+            data: {
+              access_token: accessCookie.value,
+              refresh_token: refreshCookie.value,
+            },
+          });
+        }
+      );
+    } catch (error: any) {
+      console.error("Unexpected error accessing cookies:", error);
+      sendResponse({ error: "Unexpected error: " + error.message });
+    }
+
+    return true; // Keep the message channel open for async response
   }
 });

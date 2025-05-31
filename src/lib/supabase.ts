@@ -23,19 +23,28 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-export type Snippet = {
+export interface Snippet {
   id: string;
-  user_id: string;
-  title?: string;
-  code: string;
-  language?: string;
-  tags: string[];
-  notes?: string;
   created_at: string;
-  updated_at: string;
-};
+  title: string;
+  code: string;
+  language: string;
+  tags: string[];
+  notes: string;
+  user_id: string;
+  slug: string;
+  is_public: boolean;
+  view_count: number;
+}
 
-export type SnippetInput = Omit<
-  Snippet,
-  "id" | "user_id" | "created_at" | "updated_at"
->;
+export interface SnippetInput {
+  title: string;
+  code: string;
+  language: string;
+  tags: string[];
+  notes: string;
+  user_id: string;
+  slug: string;
+  is_public: boolean;
+  view_count: number;
+}

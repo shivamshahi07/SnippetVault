@@ -11,7 +11,9 @@ import { useTheme } from "../../lib/ThemeContext";
 import type { EditorView } from "@codemirror/view";
 
 interface SnippetFormProps {
-  onSubmit: (snippet: SnippetInput) => Promise<void>;
+  onSubmit: (
+    snippet: Omit<SnippetInput, "user_id" | "slug" | "is_public" | "view_count">
+  ) => void;
 }
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
@@ -20,10 +22,10 @@ export function SnippetForm({ onSubmit }: SnippetFormProps) {
   const { theme } = useTheme();
   const [title, setTitle] = useState("");
   const [code, setCode] = useState("");
-  const [tags, setTags] = useState("");
-  const [notes, setNotes] = useState("");
   const [language, setLanguage] = useState("javascript");
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
+  const [notes, setNotes] = useState("");
+  const [tagInput, setTagInput] = useState("");
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
 
@@ -57,7 +59,6 @@ export function SnippetForm({ onSubmit }: SnippetFormProps) {
   const generateSummary = async () => {
     if (!code) return;
 
-    setIsGeneratingSummary(true);
     try {
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const prompt = `Please provide a brief summary of this code snippet in 2-3 sentences:\n\n${code}`;
@@ -71,45 +72,36 @@ export function SnippetForm({ onSubmit }: SnippetFormProps) {
       );
     } catch (error) {
       console.error("Error generating summary:", error);
-    } finally {
-      setIsGeneratingSummary(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!code.trim()) {
-      alert("Code is required");
-      return;
-    }
-
-    const snippet: SnippetInput = {
-      title: title.trim() || "Untitled Snippet",
+    onSubmit({
+      title,
       code,
-      tags: tags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      notes,
       language,
-    };
+      tags,
+      notes,
+    });
+    // Reset form
+    setTitle("");
+    setCode("");
+    setLanguage("javascript");
+    setTags([]);
+    setNotes("");
+    setTagInput("");
+  };
 
-    try {
-      await onSubmit(snippet);
-      // Reset form
-      setTitle("");
-      setCode("");
-      setTags("");
-      setNotes("");
-      setLanguage("javascript");
-      if (viewRef.current) {
-        const state = createEditorState("", language, false, theme === "dark");
-        viewRef.current.setState(state);
-      }
-    } catch (error) {
-      console.error("Error saving snippet:", error);
+  const handleAddTag = () => {
+    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
+      setTags([...tags, tagInput.trim()]);
+      setTagInput("");
     }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
   const handleDownload = () => {
@@ -183,14 +175,44 @@ export function SnippetForm({ onSubmit }: SnippetFormProps) {
         >
           Tags (optional)
         </label>
-        <input
-          id="tags"
-          type="text"
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-          className="input-field dark:bg-gray-800 dark:text-white"
-          placeholder="Enter tags separated by commas"
-        />
+        <div className="mt-1 flex gap-2">
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyPress={(e) =>
+              e.key === "Enter" && (e.preventDefault(), handleAddTag())
+            }
+            className="block flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Add a tag"
+          />
+          <button
+            type="button"
+            onClick={handleAddTag}
+            className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Add
+          </button>
+        </div>
+        {tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center px-2 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTag(tag)}
+                  className="ml-1 hover:text-blue-900 dark:hover:text-blue-100"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
@@ -226,12 +248,11 @@ export function SnippetForm({ onSubmit }: SnippetFormProps) {
         <button
           type="button"
           onClick={generateSummary}
-          disabled={!code || isGeneratingSummary}
           className={`px-4 py-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-800/50 dark:text-purple-300 transition-colors duration-200 text-sm font-medium ${
-            !code || isGeneratingSummary ? "opacity-50 cursor-not-allowed" : ""
+            !code ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >
-          {isGeneratingSummary ? "Generating..." : "✨ AI"}
+          {code ? "✨ AI" : "Generating..."}
         </button>
       </div>
     </form>

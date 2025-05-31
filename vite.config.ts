@@ -8,8 +8,24 @@ const manifest: ManifestV3Export = {
   name: "Snippet Organizer",
   version: "1.0.0",
   description: "A modern code snippet manager with Supabase integration",
-  permissions: ["storage", "clipboardWrite", "identity", "webNavigation"],
-  host_permissions: ["https://*.supabase.co/*"],
+  permissions: [
+    "storage",
+    "cookies",
+    "activeTab",
+    "clipboardWrite",
+    "identity",
+    "webNavigation",
+  ],
+  host_permissions: [
+    "*://localhost/*",
+    "*://localhost:3000/*",
+    "*://localhost:5173/*",
+    "https://*.vercel.app/*",
+    "https://*.netlify.app/*",
+    "https://*.supabase.co/*",
+    "https://snippet-organizer.com/*",
+    "https://*.snippet-organizer.com/*",
+  ],
   background: {
     service_worker: "src/background.ts",
     type: "module",
@@ -22,7 +38,7 @@ const manifest: ManifestV3Export = {
     "128": "icon.png",
   },
   content_security_policy: {
-    extension_pages: "script-src 'self'; object-src 'self'",
+    extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
   },
 };
 

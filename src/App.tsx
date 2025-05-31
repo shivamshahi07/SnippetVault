@@ -1,270 +1,203 @@
-import { Auth } from "@supabase/auth-ui-react";
-import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { supabase } from "./lib/supabase";
-import { useEffect, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
-import type { Snippet, SnippetInput } from "./lib/supabase";
-import { SnippetList } from "./components/Snippets/SnippetList";
+import { useState, useEffect } from "react";
+import { ThemeProvider } from "./lib/ThemeContext";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { SnippetForm } from "./components/Snippets/SnippetForm";
-import { Header } from "./components/Layout/Header";
-import "./index.css";
-import { ThemeProvider, useTheme } from "./lib/ThemeContext";
-
-function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme();
-  return (
-    <div className="fixed top-4 left-4 flex gap-2">
-      <button
-        onClick={toggleTheme}
-        className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 border border-gray-200 dark:border-gray-700"
-        title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-      >
-        {theme === "light" ? "🌙" : "☀️"}
-      </button>
-      <button
-        onClick={() => window.location.reload()}
-        className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 border border-gray-200 dark:border-gray-700"
-        title="Home"
-      >
-        🏠
-      </button>
-    </div>
-  );
-}
+import { Header } from "./components/Header";
+import { fetchUserSnippets } from "./lib/auth";
+import { supabase } from "./lib/supabase";
+import type { Snippet, SnippetInput } from "./lib/supabase";
 
 function AppContent() {
-  const [session, setSession] = useState<Session | null>(null);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showLinkCopied, setShowLinkCopied] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
+    loadSnippets();
   }, []);
 
-  useEffect(() => {
-    if (session) {
-      fetchSnippets();
-    }
-  }, [session]);
+  const loadSnippets = async () => {
+    setIsLoading(true);
+    setError(null);
 
-  useEffect(() => {
-    // Establish connection with service worker
-    const port = chrome.runtime.connect({ name: "popup" });
-
-    return () => {
-      port.disconnect();
-    };
-  }, []);
-
-  const fetchSnippets = async () => {
-    const { data, error } = await supabase
-      .from("snippets")
-      .select("*")
-      .eq("user_id", session?.user?.id)
-      .order("created_at", { ascending: false });
+    const { data, error } = await fetchUserSnippets();
 
     if (error) {
-      console.error("Error fetching snippets:", error);
+      setError(error);
+      setIsLoading(false);
       return;
     }
 
     setSnippets(data || []);
+    setIsLoading(false);
   };
 
-  const handleSaveSnippet = async (snippetInput: SnippetInput) => {
-    if (!session?.user) return;
-
-    const { data, error } = await supabase
-      .from("snippets")
-      .insert([{ ...snippetInput, user_id: session.user.id }])
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error saving snippet:", error);
-      return;
-    }
-
-    setSnippets([data, ...snippets]);
-    setShowForm(false);
-  };
-
-  const handleDeleteSnippet = async (id: string) => {
-    const { error } = await supabase.from("snippets").delete().match({ id });
-
-    if (error) {
-      console.error("Error deleting snippet:", error);
-      return;
-    }
-
-    setSnippets(snippets.filter((snippet) => snippet.id !== id));
-  };
-
-  const handleGitHubLogin = async () => {
-    setIsLoading(true);
-    setError(null);
-
+  const handleCopyLink = async (snippet: Snippet) => {
     try {
-      console.log("Starting GitHub login");
-
-      // Send message to background script to initiate OAuth
-      const response = await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage(
-          { type: "initiate_github_login" },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-              return;
-            }
-            if (response?.error) {
-              reject(new Error(response.error));
-              return;
-            }
-            resolve(response?.data);
-          }
-        );
-      });
-
-      console.log("Login successful:", response);
-
-      // Get the latest session after successful login
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
-      if (currentSession) {
-        setSession(currentSession);
-        // Fetch snippets immediately after login
-        const { data: snippetsData } = await supabase
-          .from("snippets")
-          .select("*")
-          .eq("user_id", currentSession.user.id)
-          .order("created_at", { ascending: false });
-
-        setSnippets(snippetsData || []);
-      }
-    } catch (error) {
-      console.error("Login failed:", error);
-      setError(
-        error instanceof Error ? error.message : "Failed to login with GitHub"
-      );
-    } finally {
-      setIsLoading(false);
+      const websiteDomain =
+        import.meta.env.VITE_WEBSITE_URL || "http://localhost:3000";
+      const url = `${websiteDomain}/snippet/${snippet.slug}`;
+      await navigator.clipboard.writeText(url);
+      setShowLinkCopied(snippet.id);
+      setTimeout(() => setShowLinkCopied(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy link:", err);
     }
   };
 
-  if (!session) {
+  const handleSaveSnippet = async (
+    snippetInput: Omit<
+      SnippetInput,
+      "user_id" | "slug" | "is_public" | "view_count"
+    >
+  ) => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setError("Please log in on the website first");
+        return;
+      }
+
+      // Generate a slug from the title
+      const slug = snippetInput.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+
+      const { data, error } = await supabase
+        .from("snippets")
+        .insert([
+          {
+            ...snippetInput,
+            user_id: session.user.id,
+            slug,
+            is_public: true, // Default to public for extension-created snippets
+            view_count: 0,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error saving snippet:", error);
+        setError("Failed to save snippet");
+        return;
+      }
+
+      setSnippets([data, ...snippets]);
+      setShowForm(false);
+    } catch (err) {
+      console.error("Error:", err);
+      setError("An unexpected error occurred");
+    }
+  };
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md mt-5 w-full p-6 bg-white rounded-lg shadow-lg">
-          <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">
-            Snippet Organizer
-          </h1>
-          <div className="space-y-4">
-            <Auth
-              supabaseClient={supabase}
-              appearance={{
-                theme: ThemeSupa,
-                variables: {
-                  default: {
-                    colors: {
-                      brand: "#4F46E5",
-                      brandAccent: "#4338CA",
-                    },
-                  },
-                },
-              }}
-              providers={[]}
-              view="sign_in"
-              showLinks={true}
-              magicLink={true}
-              redirectTo={`https://mcaeeokdepphhihomapknljdamhkkabf.chromiumapp.org/callback`}
-            />
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-            {error && (
-              <div className="text-red-500 text-sm text-center mb-4 p-2 bg-red-50 rounded">
-                {error}
-              </div>
-            )}
-            <button
-              onClick={handleGitHubLogin}
-              disabled={isLoading}
-              className={`w-full btn-primary flex items-center justify-center gap-2 ${
-                isLoading ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-            >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              ) : (
-                <svg
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                </svg>
-              )}
-              {isLoading ? "Signing in..." : "Sign in with GitHub"}
-            </button>
-          </div>
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-pulse text-gray-600 dark:text-gray-400">
+          Loading snippets...
         </div>
       </div>
     );
   }
 
-  return (
-    <ThemeProvider>
-      <div className="w-[450px] h-[450px] overflow-auto">
-        <div className="container mx-auto px-4 py-8">
-          <Header onNewSnippet={() => setShowForm(true)} />
-
-          {showForm ? (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  New Snippet
-                </h2>
-                <button
-                  onClick={() => setShowForm(false)}
-                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                >
-                  Cancel
-                </button>
-              </div>
-              <SnippetForm onSubmit={handleSaveSnippet} />
-            </div>
-          ) : (
-            <SnippetList
-              snippets={snippets.slice(0, 3)}
-              onDelete={handleDeleteSnippet}
-            />
-          )}
-        </div>
-        <ThemeToggle />
+  if (error) {
+    return (
+      <div className="p-4 text-center">
+        <div className="text-red-600 dark:text-red-400 mb-4">{error}</div>
+        <a
+          href={import.meta.env.VITE_WEBSITE_URL || "http://localhost:3000"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          Open Website to Login
+        </a>
       </div>
-    </ThemeProvider>
+    );
+  }
+
+  return (
+    <div className="w-[450px] h-[450px] overflow-auto">
+      <div className="container mx-auto px-4 py-8">
+        <Header onNewSnippet={() => setShowForm(true)} />
+
+        {showForm ? (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                New Snippet
+              </h2>
+              <button
+                onClick={() => setShowForm(false)}
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              >
+                Cancel
+              </button>
+            </div>
+            <SnippetForm onSubmit={handleSaveSnippet} />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {snippets.map((snippet) => (
+              <div
+                key={snippet.id}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow p-4"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {snippet.title}
+                  </h3>
+                  <button
+                    onClick={() => handleCopyLink(snippet)}
+                    className="px-2 py-1 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
+                  >
+                    {showLinkCopied === snippet.id ? (
+                      <>
+                        <span>✓</span>
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🔗</span>
+                        <span>Share</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  {snippet.language} •{" "}
+                  {new Date(snippet.created_at).toLocaleDateString()}
+                </div>
+                {snippet.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {snippet.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full text-xs"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {snippets.length === 0 && (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                No snippets found. Create your first one!
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <ThemeToggle />
+    </div>
   );
 }
 
