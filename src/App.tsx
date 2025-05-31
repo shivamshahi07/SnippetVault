@@ -8,8 +8,31 @@ import { SnippetList } from "./components/Snippets/SnippetList";
 import { SnippetForm } from "./components/Snippets/SnippetForm";
 import { Header } from "./components/Layout/Header";
 import "./index.css";
+import { ThemeProvider, useTheme } from "./lib/ThemeContext";
 
-function App() {
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <div className="fixed top-4 left-4 flex gap-2">
+      <button
+        onClick={toggleTheme}
+        className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 border border-gray-200 dark:border-gray-700"
+        title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+      >
+        {theme === "light" ? "🌙" : "☀️"}
+      </button>
+      <button
+        onClick={() => window.location.reload()}
+        className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 border border-gray-200 dark:border-gray-700"
+        title="Home"
+      >
+        🏠
+      </button>
+    </div>
+  );
+}
+
+function AppContent() {
   const [session, setSession] = useState<Session | null>(null);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -146,7 +169,7 @@ function App() {
   if (!session) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-lg">
+        <div className="max-w-md mt-5 w-full p-6 bg-white rounded-lg shadow-lg">
           <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">
             Snippet Organizer
           </h1>
@@ -212,31 +235,43 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <Header onNewSnippet={() => setShowForm(true)} />
+    <ThemeProvider>
+      <div className="w-[450px] h-[450px] overflow-auto">
+        <div className="container mx-auto px-4 py-8">
+          <Header onNewSnippet={() => setShowForm(true)} />
 
-        {showForm ? (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">
-                New Snippet
-              </h2>
-              <button
-                onClick={() => setShowForm(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                Cancel
-              </button>
+          {showForm ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  New Snippet
+                </h2>
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                >
+                  Cancel
+                </button>
+              </div>
+              <SnippetForm onSubmit={handleSaveSnippet} />
             </div>
-            <SnippetForm onSubmit={handleSaveSnippet} />
-          </div>
-        ) : (
-          <SnippetList snippets={snippets} onDelete={handleDeleteSnippet} />
-        )}
+          ) : (
+            <SnippetList
+              snippets={snippets.slice(0, 3)}
+              onDelete={handleDeleteSnippet}
+            />
+          )}
+        </div>
+        <ThemeToggle />
       </div>
-    </div>
+    </ThemeProvider>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}

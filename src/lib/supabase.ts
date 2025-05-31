@@ -26,9 +26,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export type Snippet = {
   id: string;
   user_id: string;
-  title: string;
+  title?: string;
   code: string;
-  language: string;
+  language?: string;
   tags: string[];
   notes?: string;
   created_at: string;

@@ -20,9 +20,12 @@ export function SnippetList({ snippets, onDelete }: SnippetListProps) {
   const filteredSnippets = snippets.filter((snippet) => {
     const matchesSearch =
       searchTerm === "" ||
-      snippet.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      snippet.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       snippet.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      snippet.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+      snippet.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      snippet.tags.some((tag) =>
+        tag.toLowerCase().includes(searchTerm.toLowerCase())
+      );
 
     const matchesTag = !selectedTag || snippet.tags.includes(selectedTag);
 
